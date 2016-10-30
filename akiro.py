@@ -22,14 +22,23 @@ async def fetch(session, url):
 async def fetcher(session, q):
     print('fetcher started')
     while True:
-        url = await q.get()
-        print('got url: {}'.format(url))
-        data = await fetch(session, url)
-        print(data)
+        item = await q.get()
+        print('got item: {}'.format(item))
+        if item == None:
+            q.task_done()
+            break
+        else:
+            data = await fetch(session, item)
+            print(data)
+            q.task_done()
 
-async def push(q, url):
-    print('pushing url: {}'.format(url))
-    await q.put(url)
+async def push(q, item):
+    print('pushing item: {}'.format(item))
+    await q.put(item)
+
+async def kill_fetcher(q):
+    await q.join()
+    await push(q, None)
 
 def main():
     max_fetchers = 5
@@ -38,7 +47,8 @@ def main():
         loop = asyncio.get_event_loop()
         init_task = loop.create_task(push(q, start_url))
         fetch_tasks = loop.create_task(fetcher(session, q))
-        result = loop.run_until_complete(asyncio.wait([init_task] + [fetch_tasks]))
+        kill_tasks = loop.create_task(kill_fetcher(q))
+        loop.run_until_complete(asyncio.wait([init_task] + [fetch_tasks] + [kill_tasks]))
 
 # parsing pips responses
 def all_entities(data):
