@@ -6,6 +6,7 @@ import os
 import ssl
 import sys
 
+#b0729l56
 
 start_url = os.environ.get('BASE') + 'pid.' + sys.argv[1] + '?format=json'
 
@@ -20,10 +21,11 @@ async def fetch(session, url):
 
 async def fetcher(session, q):
     print('fetcher started')
-    url = await q.get()
-    print('got url: {}'.format(url))
-    data = await fetch(session, url)
-    return data
+    while True:
+        url = await q.get()
+        print('got url: {}'.format(url))
+        data = await fetch(session, url)
+        print(data)
 
 async def push(q, url):
     print('pushing url: {}'.format(url))
@@ -37,7 +39,6 @@ def main():
         init_task = loop.create_task(push(q, start_url))
         fetch_tasks = loop.create_task(fetcher(session, q))
         result = loop.run_until_complete(asyncio.wait([init_task] + [fetch_tasks]))
-    print(type(result[0]))
 
 # parsing pips responses
 def all_entities(data):
