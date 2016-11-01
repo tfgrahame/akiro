@@ -29,7 +29,7 @@ async def fetcher(session, q):
             break
         else:
             data = await fetch(session, item)
-            print(data)
+            print(parse_entity(data))
             q.task_done()
 
 async def push(q, item):
@@ -46,16 +46,35 @@ def main():
     with aiohttp.ClientSession(connector=conn) as session:
         loop = asyncio.get_event_loop()
         init_task = loop.create_task(push(q, start_url))
-        fetch_tasks = loop.create_task(fetcher(session, q))
-        kill_tasks = loop.create_task(kill_fetcher(q))
-        loop.run_until_complete(asyncio.wait([init_task] + [fetch_tasks] + [kill_tasks]))
+        fetch_tasks = [loop.create_task(fetcher(session, q)) for i in range(max_fetchers)]
+        kill_tasks = [loop.create_task(kill_fetcher(q)) for i in range(max_fetchers)]
+        loop.run_until_complete(asyncio.wait([init_task] + fetch_tasks + kill_tasks))
 
 # parsing pips responses
 def all_entities(data):
     return [entity for entity in data[0][2:]]
 
-def format(url):
+def format_url(url):
     return url + '?format=json'
+
+def get_list(entity, key):
+    return [i for i in entity if (isinstance(i, list) and i[0] == key)]
+
+def format_id(id):
+    data = {}
+    data['id'] = id[2]
+    data['type'] = id[1]['type']
+    data['authority'] = id[1]['authority']
+    return data
+
+def parse_entity(entity):
+    data = {}
+    data['type'] = entity[0]
+    data['member_of'] = [i for i in get_list(entity, 'member_of') if isinstance(i, list)][0][2][1]['pid']
+    data['title'] = [i for i in get_list(entity, 'title') if isinstance(i, list)][0][2]
+    data['ids'] = [format_id(i) for i in get_list(entity, 'ids')[0][2:] if isinstance(i, list)]
+    data['links'] = []
+    return data
 
 if __name__ == '__main__':
     main()
