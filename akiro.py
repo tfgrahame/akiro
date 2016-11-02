@@ -11,23 +11,14 @@ import sys
 pid = sys.argv[1]
 start_url = os.environ.get('BASE') + 'pid.' + pid + '?format=json'
 
-RSMAP = {'brand':['pips-meta:series-resultset', 'pips-meta:episode-resultset', 'pips-meta:clip-resultset'],
-         'series':['pips-meta:series-resultset', 'pips-meta:episode-resultset', 'pips-meta:clip-resultset'],
-         'episode':['pips-meta:version-resultset', 'pips-meta:clip-resultset'],
-         'clip':['pips-meta:version-resultset'],
-         'version':['pips-meta:ondemand-resultset','pips-meta:media_asset-resultset', 'pips-meta:broadcast-resultset'],
-         'broadcast':[],
-         'media_asset':[],
-         'ondemand':[]}
-      
-EMAP = {'brand': None,
-        'series': 'member_of',
-        'episode': 'member_of',
-        'clip': 'clip_of',
-        'version': 'version_of',
-        'broadcast': 'broadcast_of',
-        'media_asset': 'media_asset_of',
-        'ondemand': 'broadcast_of'}
+MAP = {'brand':{'rel_type':None, 'urls':['children/series', 'children/episodes', 'children/clips']},
+       'series':{'rel_type':'member_of', 'urls':['children/series', 'children/episodes', 'children/clips']},
+       'episode':{'rel_type':'member_of', 'urls':['children/episodes', 'children/clips']},
+       'clip':{'rel_type':'clip_of', 'urls':['versions']},
+       'version':{'rel_type':'version_of', 'urls':['ondemands','media_assets','broadcasts']},
+       'broadcast':{'rel_type':'broadcast_of', 'urls':[]},
+       'media_asset':{'rel_type':'media_asset_of', 'urls':[]},
+       'ondemand':{'rel_type':'broadcast_of', 'urls':[]}}
 
 sslcontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
 sslcontext.load_cert_chain(os.environ.get('CERT'))
@@ -82,9 +73,6 @@ def main():
 def all_entities(data):
     return [entity for entity in data[0][2:]]
 
-def format_url(url):
-    return url + '?format=json'
-
 def get_list(entity, key):
     return [i for i in entity[2:] if i[0] == key]
 
@@ -96,14 +84,13 @@ def format_id(id):
     return data
 
 def parse_entity(entity):
-    rel_type = EMAP[entity[0]]
     data = {}
     data['pid'] = entity[1]['pid']
     data['type'] = entity[0]
-    data['child_of'] = [i for i in get_list(entity, rel_type) if isinstance(i, list)][0][2][1]['pid']
+    data['child_of'] = [i for i in get_list(entity, MAP[entity[0]]['rel_type']) if isinstance(i, list)][0][2][1]['pid']
     data['title'] = [i for i in get_list(entity, 'title') if isinstance(i, list)][0][2]
     data['ids'] = [format_id(i) for i in get_list(entity, 'ids')[0][2:] if isinstance(i, list)]
-    data['links'] = []
+    data['links'] = [entity[1]['href'] + link + '?format=json' for link in MAP[entity[0]]['urls']]
     return data
 
 if __name__ == '__main__':
