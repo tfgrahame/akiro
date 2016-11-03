@@ -9,16 +9,16 @@ import sys
 
 #b0729l56
 pid = sys.argv[1]
-start_url = os.environ.get('PIPS_BASE') + 'pid.' + pid + '?format=json'
+start_url = os.environ.get('BASE') + 'pid.' + pid + '?format=json'
 
-MAP = {'brand':{'rel_type':None, 'urls':['children/series', 'children/episodes', 'children/clips']},
-       'series':{'rel_type':'member_of', 'urls':['children/series', 'children/episodes', 'children/clips']},
-       'episode':{'rel_type':'member_of', 'urls':['children/versions', 'children/clips']},
-       'clip':{'rel_type':'clip_of', 'urls':['versions']},
-       'version':{'rel_type':'version_of', 'urls':['ondemands','media_assets','broadcasts']},
-       'broadcast':{'rel_type':'broadcast_of', 'urls':[]},
-       'media_asset':{'rel_type':'media_asset_of', 'urls':[]},
-       'ondemand':{'rel_type':'broadcast_of', 'urls':[]}}
+MAP = {'brand':{'rel_type':'tleo', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
+        'series':{'rel_type':'member_of', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
+        'episode':{'rel_type':'member_of', 'urls':['children/versions', 'children/clips'], 'shape':'ellipse'},
+        'clip':{'rel_type':'clip_of', 'urls':['versions'], 'shape':'ellipse'},
+        'version':{'rel_type':'version_of', 'urls':['ondemands','media_assets','broadcasts'], 'shape':'diamond'},
+        'broadcast':{'rel_type':'broadcast_of', 'urls':[], 'shape':'circle'},
+        'media_asset':{'rel_type':'media_asset_of', 'urls':[], 'shape':'doublecircle'},
+        'ondemand':{'rel_type':'broadcast_of', 'urls':[], 'shape':'circle'}}
 
 sslcontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
 sslcontext.load_cert_chain(os.environ.get('CERT'))
@@ -44,7 +44,7 @@ async def worker(session, q, g):
                 for link in entity['links']:
                     await push(q, link)
                 if entity['type'] in MAP:
-                    await add_node(entity['child_of'], entity['pid'], g)
+                    await add_node(entity, g)
             q.task_done()
 
 async def push(q, item):
@@ -55,16 +55,17 @@ async def kill_worker(q):
     await q.join()
     await push(q, None)
 
-async def add_node(parent, child, g):
+async def add_node(entity, g):
     print('adding node')
-    g.node(parent, parent)
-    g.node(child, child)
+    parent = entity['child_of']
+    child = entity['pid']
+    g.node(child, '{}\n{}'.format(child, entity['type']), shape=MAP[entity['type']]['shape'])
     g.edge(parent, child)
 
 def main():
     max_workers = 5
-    q = asyncio.Queue(maxsize=max_workers)
     g = graphviz.Digraph(format='svg')
+    q = asyncio.Queue()
     with aiohttp.ClientSession(connector=conn) as session:
         loop = asyncio.get_event_loop()
         init_task = loop.create_task(push(q, start_url))
@@ -88,9 +89,13 @@ def parse_entity(entity):
     data = {}
     data['pid'] = entity[1]['pid']
     data['type'] = entity[0]
-    data['child_of'] = [i for i in get_list(entity, MAP[entity[0]]['rel_type']) if isinstance(i, list)][0][2][1]['pid']
     data['ids'] = [format_id(i) for i in get_list(entity, 'ids')[0][2:] if isinstance(i, list)]
     data['links'] = [entity[1]['href'] + link + '?format=json' for link in MAP[entity[0]]['urls']]
+    parent = get_list(entity, MAP[entity[0]]['rel_type'])
+    if len(parent) == 0:
+        data['child_of'] = 'tleo'
+    else:
+        data['child_of'] = [i for i in parent if isinstance(i, list)][0][2][1]['pid']
     if entity[0] in ('brand', 'series', 'episode', 'clip'):
         data['title'] = [i for i in get_list(entity, 'title') if isinstance(i, list)][0][2]
     else:
