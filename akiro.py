@@ -9,11 +9,11 @@ import sys
 
 #b0729l56
 pid = sys.argv[1]
-start_url = os.environ.get('BASE') + 'pid.' + pid + '?format=json'
+start_url = os.environ.get('PIPS_BASE') + 'pid.' + pid + '?format=json'
 
 MAP = {'brand':{'rel_type':None, 'urls':['children/series', 'children/episodes', 'children/clips']},
        'series':{'rel_type':'member_of', 'urls':['children/series', 'children/episodes', 'children/clips']},
-       'episode':{'rel_type':'member_of', 'urls':['children/episodes', 'children/clips']},
+       'episode':{'rel_type':'member_of', 'urls':['children/versions', 'children/clips']},
        'clip':{'rel_type':'clip_of', 'urls':['versions']},
        'version':{'rel_type':'version_of', 'urls':['ondemands','media_assets','broadcasts']},
        'broadcast':{'rel_type':'broadcast_of', 'urls':[]},
@@ -38,8 +38,8 @@ async def worker(session, q, g):
             q.task_done()
             break
         else:
-            data = await fetch(session, item)
-            entity = parse_entity(data)
+            response = await fetch(session, item)
+            entity = parse_entity(response)
             await add_node(entity['child_of'], entity['pid'], g)
             q.task_done()
 
@@ -70,9 +70,6 @@ def main():
     g.render(os.environ.get('HOME') + '/Tmp/' + pid + '.gv')
 
 # parsing pips responses
-def all_entities(data):
-    return [entity for entity in data[0][2:]]
-
 def get_list(entity, key):
     return [i for i in entity[2:] if i[0] == key]
 
@@ -88,10 +85,34 @@ def parse_entity(entity):
     data['pid'] = entity[1]['pid']
     data['type'] = entity[0]
     data['child_of'] = [i for i in get_list(entity, MAP[entity[0]]['rel_type']) if isinstance(i, list)][0][2][1]['pid']
-    data['title'] = [i for i in get_list(entity, 'title') if isinstance(i, list)][0][2]
     data['ids'] = [format_id(i) for i in get_list(entity, 'ids')[0][2:] if isinstance(i, list)]
     data['links'] = [entity[1]['href'] + link + '?format=json' for link in MAP[entity[0]]['urls']]
+    if entity[0] in ('brand', 'series', 'episode', 'clip'):
+        data['title'] = [i for i in get_list(entity, 'title') if isinstance(i, list)][0][2]
+    else:
+        data['title'] = ''
     return data
+
+def format_next_page(next_page):
+    data = {}
+    data['type'] = 'page'
+    data['links'] = [i['href'] for i in next_page[1:] if i['rel'] == 'pips-meta:pager-next']
+    return data
+
+def parse_response(response):
+    if (isinstance(response[0], list) and response[0][0] == 'results'):
+        total = int(response[0][1]['total'])
+        if total == 0:
+            return []
+        elif total > 0:
+            return [parse_entity(e) for e in response[0][2:]]
+    elif (isinstance(response[0], list) and response[0][0] == 'links'):
+        next_page = format_next_page(response[0][2])
+        entities = [parse_entity(e) for e in response[1][2:]]
+        entities.append(next_page)
+        return entities
+    else:
+        return [parse_entity(response)]
 
 if __name__ == '__main__':
     main()
