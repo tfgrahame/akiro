@@ -41,15 +41,10 @@ async def worker(session, q, g):
             response = await fetch(session, item)
             data = parse_response(response)
             for entity in data:
+                for link in entity['links']:
+                    await push(q, link)
                 if entity['type'] in MAP:
                     await add_node(entity['child_of'], entity['pid'], g)
-                    for link in entity['links']:
-                        await push(q, link)
-                elif entity['type'] == 'page':
-                    for link in entity['links']:
-                        await push(q, link)
-                else:
-                    print('mad error')
             q.task_done()
 
 async def push(q, item):
