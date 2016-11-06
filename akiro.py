@@ -7,17 +7,16 @@ import os
 import ssl
 import sys
 
-#b0729l56
 pid = sys.argv[1]
-start_url = os.environ.get('BASE') + 'pid.' + pid + '?format=json'
+start_url = os.environ.get('PIPS_BASE') + 'pid.' + pid + '?format=json'
 
 MAP = {'brand':{'rel_type':'tleo', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
         'series':{'rel_type':'member_of', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
         'episode':{'rel_type':'member_of', 'urls':['children/versions', 'children/clips'], 'shape':'ellipse'},
         'clip':{'rel_type':'clip_of', 'urls':['versions'], 'shape':'ellipse'},
         'version':{'rel_type':'version_of', 'urls':['ondemands','media_assets','broadcasts'], 'shape':'diamond'},
-        'broadcast':{'rel_type':'broadcast_of', 'urls':[], 'shape':'circle'},
-        'media_asset':{'rel_type':'media_asset_of', 'urls':[], 'shape':'doublecircle'},
+        'broadcast':{'rel_type':'broadcast_of', 'urls':[], 'shape':'square'},
+        'media_asset':{'rel_type':'media_asset_of', 'urls':[], 'shape':'octagon'},
         'ondemand':{'rel_type':'broadcast_of', 'urls':[], 'shape':'circle'}}
 
 sslcontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
@@ -41,26 +40,32 @@ async def worker(session, q, g):
             response = await fetch(session, item)
             data = parse_response(response)
             for entity in data:
-                for link in entity['links']:
-                    await push(q, link)
                 if entity['type'] in MAP:
                     await add_node(entity, g)
+                for link in entity['links']:
+                    await push(q, link)
             q.task_done()
 
 async def push(q, item):
     print('pushing item: {}'.format(item))
     await q.put(item)
+    print('queue size:', q.qsize())
 
 async def kill_worker(q):
     await q.join()
     await push(q, None)
 
 async def add_node(entity, g):
-    print('adding node')
     parent = entity['child_of']
     child = entity['pid']
-    g.node(child, '{}\n{}'.format(child, entity['type']), shape=MAP[entity['type']]['shape'])
-    g.edge(parent, child)
+    ids = [id['id'] for id in entity['ids'] if id['type'] == 'uid']
+    if len(ids) != 0:
+        uid = ids
+    else:
+        uid = ''
+    g.node(child, '{}\n{}\n{}\n{}'.format(entity['title'], child, entity['type'],uid), shape=MAP[entity['type']]['shape'])
+    if parent != 'tleo':
+        g.edge(parent, child)
 
 def main():
     max_workers = 5
