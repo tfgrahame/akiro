@@ -8,16 +8,21 @@ import ssl
 import sys
 
 pid = sys.argv[1]
-start_url = os.environ.get('PIPS_BASE') + 'pid.' + pid + '?format=json'
+start_url = os.environ.get('BASE') + 'pid.' + pid + '?format=json'
 
 MAP = {'brand':{'rel_type':'tleo', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
         'series':{'rel_type':'member_of', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
         'episode':{'rel_type':'member_of', 'urls':['children/versions', 'children/clips'], 'shape':'ellipse'},
         'clip':{'rel_type':'clip_of', 'urls':['versions'], 'shape':'ellipse'},
-        'version':{'rel_type':'version_of', 'urls':['ondemands','media_assets','broadcasts'], 'shape':'diamond'},
+        'version':{'rel_type':'version_of', 'urls':[], 'shape':'diamond'},
         'broadcast':{'rel_type':'broadcast_of', 'urls':[], 'shape':'square'},
         'media_asset':{'rel_type':'media_asset_of', 'urls':[], 'shape':'octagon'},
         'ondemand':{'rel_type':'broadcast_of', 'urls':[], 'shape':'circle'}}
+
+suffix = ''
+if len(sys.argv) > 2 and sys.argv[2] == '--all':
+    MAP['version']['urls'] = ['ondemands', 'media_assets', 'broadcasts']
+    suffix = '-all'
 
 sslcontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
 sslcontext.load_cert_chain(os.environ.get('CERT'))
@@ -77,7 +82,7 @@ def main():
         worker_tasks = [loop.create_task(worker(session, q, g)) for i in range(max_workers)]
         kill_tasks = [loop.create_task(kill_worker(q)) for i in range(max_workers)]
         loop.run_until_complete(asyncio.wait([init_task] + worker_tasks + kill_tasks))
-    g.render(os.environ.get('HOME') + '/Tmp/' + pid + '.gv')
+    g.render(os.environ.get('HOME') + '/Tmp/' + pid + suffix + '.gv')
 
 # parsing pips responses
 def get_list(entity, key):
