@@ -8,7 +8,7 @@ import ssl
 import sys
 
 pid = sys.argv[1]
-start_url = os.environ.get('BASE') + 'pid.' + pid + '?format=json'
+start_url = os.environ.get('PIPS_BASE') + 'pid.' + pid + '?format=json'
 
 MAP = {'brand':{'rel_type':'tleo', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
         'series':{'rel_type':'member_of', 'urls':['children/series', 'children/episodes', 'children/clips'], 'shape':'ellipse'},
