@@ -7,9 +7,9 @@ Asynchronously plotting BBC programmes with Python and GraphViz
 
 `source activate akiro`
 
-`pip install asyncio`
+`pip install asyncio==3.4.3`
 
-`pip install aiohttp`
+`pip install aiohttp==1.0.5`
 
 `pip install graphviz`
 
