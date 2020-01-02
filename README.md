@@ -15,6 +15,3 @@ Asynchronously plotting BBC programmes with Python and GraphViz
 
 ### Run
 `./akiro p04r2j4k`
-
----
-Akiro is a character in the film Conan the Barbarian
